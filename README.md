@@ -10,8 +10,8 @@
 - 🐧 Works in Linux/Unix terminal  
 
 # Installation  
-chmod +x 0xED.sh
-./0xED.sh 
+- chmod +x 0xED.sh
+- ./0xED.sh 
 
 # Controls  
 - :w - Save file and exit 
