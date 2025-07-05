@@ -4,14 +4,21 @@
 RED='\033[0;31m'
 NC='\033[0m' # без цвета
 
+print_help() {
+    echo -e "${RED}Команды редактора 0xED:${NC}"
+    echo -e "${RED}:w${NC} - сохранить текст в файл"
+    echo -e "${RED}:q${NC} - выйти без сохранения"
+    echo -e "${RED}:h${NC} - показать справку"
+    echo
+}
+
 echo -e "${RED}=== 0xED - простой текстовый редактор ===${NC}"
-echo -e "${RED}Введите текст. Для сохранения введите ':w' и нажмите Enter.${NC}"
-echo -e "${RED}Для выхода без сохранения введите ':q' и нажмите Enter.${NC}"
+echo -e "${RED}Введите текст. Для справки введите ':h' и нажмите Enter.${NC}"
 
 buffer=()
 while true; do
-    # Выводим приглашение "1>" красным цветом
-    echo -ne "${RED}1> ${NC}"
+    # Выводим приглашение ">" красным цветом
+    echo -ne "${RED}> ${NC}"
     read line
     if [[ "$line" == ":w" ]]; then
         echo -ne "${RED}Введите имя файла для сохранения: ${NC}"
@@ -22,7 +29,10 @@ while true; do
     elif [[ "$line" == ":q" ]]; then
         echo -e "${RED}Выход без сохранения.${NC}"
         break
+    elif [[ "$line" == ":h" ]]; then
+        print_help
     else
         buffer+=("$line")
     fi
 done
+
