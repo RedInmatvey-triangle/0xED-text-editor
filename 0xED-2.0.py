@@ -1,11 +1,11 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 import tkinter.font as tkFont
-import requests
+import webbrowser
 import re
-
-DEESEEK_API_KEY = "sk-849ea946f49b46919374708d99becd87"
-DEESEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+import subprocess
+import threading
+import ast
 
 PYTHON_KEYWORDS = [
     'False', 'class', 'finally', 'is', 'return', 'None', 'continue', 'for',
@@ -103,9 +103,8 @@ class TextEditorTab(tk.Frame):
         self.textarea.bind("<<Modified>>", self._on_modified)
         self.textarea.bind("<Double-Button-1>", self.on_double_click_line)
 
-        self.textarea.bind("<KeyRelease>", self._highlight_syntax)  # подсветка при наборе текста
+        self.textarea.bind("<KeyRelease>", self._highlight_syntax)
 
-        # Контекстное меню с операциями с текстом
         self.context_menu = tk.Menu(self.textarea, tearoff=0)
         self.context_menu.add_command(label="Отменить", command=lambda: self.textarea.event_generate("<<Undo>>"))
         self.context_menu.add_command(label="Вернуть", command=lambda: self.textarea.event_generate("<<Redo>>"))
@@ -142,7 +141,6 @@ class TextEditorTab(tk.Frame):
 
         content = self.textarea.get("1.0", tk.END)
 
-        # Подсветка ключевых слов
         for keyword in PYTHON_KEYWORDS:
             start = "1.0"
             while True:
@@ -153,14 +151,12 @@ class TextEditorTab(tk.Frame):
                 self.textarea.tag_add("keyword", pos, end)
                 start = end
 
-        # Подсветка комментариев (# и до конца строки)
         comment_pattern = re.compile(r"#.*")
         for match in comment_pattern.finditer(content):
             start_index = f"1.0+{match.start()}c"
             end_index = f"1.0+{match.end()}c"
             self.textarea.tag_add("comment", start_index, end_index)
 
-        # Подсветка строк (одинарные и двойные кавычки)
         string_pattern = re.compile(r"(\".*?\"|\'.*?\')")
         for match in string_pattern.finditer(content):
             start_index = f"1.0+{match.start()}c"
@@ -310,7 +306,6 @@ class TextEditor:
         self.root.title("0xED")
         self.root.geometry("800x600")
 
-        # Текущая тема: "light" или "dark"
         self.current_theme = "light"
         self.bg_color = "white"
         self.button_fg = "black"
@@ -348,6 +343,15 @@ class TextEditor:
     def _create_topbar(self):
         self.topbar = tk.Frame(self.root, bg="white")
         self.topbar.pack(side=tk.TOP, fill=tk.X)
+
+        label_frame = tk.Frame(self.topbar, bg="white")
+        label_frame.pack(side=tk.LEFT, padx=10, pady=5)
+
+        label_red = tk.Label(label_frame, text="0x", fg="red", bg="white", font=("Arial", 14, "bold"))
+        label_red.pack(side=tk.LEFT)
+
+        label_black = tk.Label(label_frame, text="ED", fg="black", bg="white", font=("Arial", 14, "bold"))
+        label_black.pack(side=tk.LEFT)
 
         self.file_btn = tk.Menubutton(self.topbar, text="Файл")
         self.file_btn.pack(side=tk.LEFT, padx=2, pady=2)
@@ -395,10 +399,10 @@ class TextEditor:
             activebackground="#ff4444",
             activeforeground="white",
         )
-        # Переключатель темы - использовать add_radiobutton
-        view_menu.add_radiobutton(label="Светлая тема", variable=tk.StringVar(value=self.current_theme),
+        theme_var = tk.StringVar(value=self.current_theme)
+        view_menu.add_radiobutton(label="Светлая тема", variable=theme_var,
                                   value="light", command=lambda: self.change_theme("light"))
-        view_menu.add_radiobutton(label="Темная тема", variable=tk.StringVar(value=self.current_theme),
+        view_menu.add_radiobutton(label="Темная тема", variable=theme_var,
                                   value="dark", command=lambda: self.change_theme("dark"))
         self.view_btn.config(menu=view_menu)
 
@@ -446,13 +450,15 @@ class TextEditor:
         run_menu.add_command(label="Дебаггинг", command=self.debug_python_code)
         self.run_btn.config(menu=run_menu)
 
-        self.help_btn = tk.Button(self.topbar, text="Справка", command=self.show_about)
-        self.help_btn.pack(side=tk.LEFT, padx=2, pady=5)
-        self._make_button_style(self.help_btn)
-
+        # Сначала кнопка "Поиск"
         self.find_btn = tk.Button(self.topbar, text="Поиск", command=self.find_text)
         self.find_btn.pack(side=tk.LEFT, padx=2, pady=5)
         self._make_button_style(self.find_btn)
+
+        # Затем кнопка "Справка"
+        self.help_btn = tk.Button(self.topbar, text="Справка", command=self.show_about)
+        self.help_btn.pack(side=tk.LEFT, padx=2, pady=5)
+        self._make_button_style(self.help_btn)
 
     def change_theme(self, theme):
         if theme == self.current_theme:
@@ -464,85 +470,31 @@ class TextEditor:
         else:
             self.bg_color = "#1e1e1e"
             self.button_fg = "#d4d4d4"
-        # Обновляем все вкладки
         for tab in self.tabs:
             tab.textarea.config(bg=self.bg_color, fg=self.button_fg, insertbackground=self.button_fg)
             tab.linenumbers.config(bg="#d3d3d3" if theme == "light" else "#2e2e2e")
             tab._highlight_syntax()
-
-        # Можно обновить цвета верхней панели и кнопок, если нужно
         self.topbar.config(bg=self.bg_color)
         for child in self.topbar.winfo_children():
-            if isinstance(child, (tk.Button, tk.Menubutton)):
-                fg_col = self.button_fg
-                bg_col = self.bg_color
-                child.config(fg=fg_col, bg=bg_col)
+            if isinstance(child, (tk.Button, tk.Menubutton, tk.Label)):
+                child.config(fg=self.button_fg, bg=self.bg_color)
 
     def show_about(self):
         about_text = (
             "0xED — это простой текстовый редактор с подсветкой Python-синтаксиса, "
             "работой с вкладками, подсветкой ключевых слов, строк и комментариев.\n\n"
-            "Реализован на Python с использованием Tkinter.\n\n"
             "Функции:\n"
             "- Работа с несколькими вкладками\n"
             "- Запуск и дебаггинг Python-кода\n"
             "- Подсветка синтаксиса Python\n"
             "- Поиск по тексту\n"
-            "- Интеграция с Deepseek API для AI-чата\n"
+            "- Чат с ИИ в браузере\n"
             "- Светлая и темная темы интерфейса"
         )
         messagebox.showinfo("О программе 0xED", about_text)
 
     def open_ai_chat(self):
-        chat_win = tk.Toplevel(self.root)
-        chat_win.title("Чат с ИИ")
-        chat_win.geometry("400x500")
-        chat_win.config(bg="white")
-
-        messages_text = tk.Text(chat_win, state=tk.DISABLED, wrap=tk.WORD, bg="white", fg="black",
-                                font=self.btn_font)
-        messages_text.pack(expand=True, fill=tk.BOTH, padx=5, pady=5)
-
-        input_frame = tk.Frame(chat_win, bg="white")
-        input_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        input_entry = tk.Entry(input_frame, font=self.btn_font)
-        input_entry.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-
-        def send_message():
-            user_msg = input_entry.get().strip()
-            if user_msg:
-                messages_text.config(state=tk.NORMAL)
-                messages_text.insert(tk.END, f"Вы: {user_msg}\n")
-                input_entry.delete(0, tk.END)
-                try:
-                    headers = {
-                        "Authorization": f"Bearer {DEESEEK_API_KEY}",
-                        "Content-Type": "application/json"
-                    }
-                    data = {
-                        "model": "deepseek-chat",
-                        "messages": [
-                            {"role": "user", "content": user_msg}
-                        ],
-                        "temperature": 0.7
-                    }
-                    response = requests.post(DEESEEK_API_URL, json=data, headers=headers, timeout=15)
-                    response.raise_for_status()
-                    ai_response = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
-                    if not ai_response:
-                        ai_response = "ИИ не вернул ответ."
-                except Exception as e:
-                    ai_response = f"Ошибка запроса к ИИ: {e}"
-
-                messages_text.insert(tk.END, f"ИИ: {ai_response}\n\n")
-                messages_text.config(state=tk.DISABLED)
-                messages_text.see(tk.END)
-
-        send_button = tk.Button(input_frame, text="Отправить", command=send_message)
-        send_button.pack(side=tk.RIGHT, padx=5)
-
-        input_entry.bind("<Return>", lambda event: send_message())
+        webbrowser.open("https://www.perplexity.ai")
 
     def get_current_tab(self):
         if not self.tabs:
@@ -640,8 +592,6 @@ class TextEditor:
             self.root.title("0xED")
 
     def run_python_code(self):
-        import subprocess
-        import threading
         current = self.get_current_tab()
         if current:
             code = current.textarea.get("1.0", tk.END)
@@ -680,7 +630,6 @@ class TextEditor:
             threading.Thread(target=execute_code).start()
 
     def debug_python_code(self):
-        import ast
         current = self.get_current_tab()
         if current:
             code = current.textarea.get("1.0", tk.END)
