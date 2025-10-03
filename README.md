@@ -7,7 +7,7 @@
 - Easy to use
 - Unique red interface  
 - Basic text editing functions
-- AI Deepseek functions
+- AI Perplexity functions
 - Running and debugging code in Python
 - Multiple tabs
 - Syntax highlight
